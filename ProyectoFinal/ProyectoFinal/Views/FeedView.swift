@@ -6,28 +6,56 @@
 //
 
 import SwiftUI
+import Amplify
 
 struct FeedView: View {
-    @AppStorage("status") var logged = false
+    @StateObject var sessionVM = SessionViewModel()
     
     var body: some View {
         NavigationView{
-            if logged{
-                VStack{
-                    Text ("User Logged In")
-                        .navigationTitle("Home")
-                        .navigationBarHidden(/*@START_MENU_TOKEN@*/false/*@END_MENU_TOKEN@*/)
-                        .preferredColorScheme(.light)
-                    Button(action:{
-                        logged = false
-                    }, label: {
-                        Text("Logout")
-                    })
+            if sessionVM.isLogged() {
+                Text("Logged to the feed")
+                .toolbar {
+                    Button("Log Out") {
+                        self.logOut()
+                    }
                 }
             }else{
-                LoginView()
-                    .preferredColorScheme(.light)
-                    .navigationBarHidden(true)
+                VStack{
+                   LoginView()
+                }.padding()
+            }
+        }
+        .onAppear { self.fetchCurrentAuthSession() }
+        .navigationBarTitle("Welcome")
+        .environmentObject(self.sessionVM)
+        
+    }
+    func fetchCurrentAuthSession() {
+        Amplify.Auth.fetchAuthSession { result in
+            switch result {
+            case .success(let session):
+                print("Is user signed in - \(session.isSignedIn)")
+                
+                if session.isSignedIn {
+                    self.sessionVM.logged = true
+                }
+                
+            case .failure(let error):
+                print("Fetch session failed with error \(error)")
+            }
+        }
+    }
+    func logOut(){
+        Amplify.Auth.signOut() { result in
+            switch result {
+            case .success:
+                print("Successfully signed out")
+                withAnimation(.easeOut){self.sessionVM.logged = false}
+                //self.sessionVM.logged = false
+            case .failure(let error):
+                print("Sign out failed with error \(error)")
+                self.sessionVM.logged = true
             }
         }
     }

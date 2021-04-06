@@ -7,14 +7,15 @@
 
 import SwiftUI
 import LocalAuthentication
+import Amplify
+import SCLAlertView
 
 struct LoginView: View {
-    @State var userName = ""
+    @State var username = ""
     @State var password = ""
-    @AppStorage("status") var logged = false
-    
+    @EnvironmentObject var sessionVM: SessionViewModel
     //@Environment(\.presentationMode) var presentationMode
-    @ObservedObject var coreDataVM = CoreDataViewModel()
+    //@ObservedObject var coreDataVM = CoreDataViewModel()
     
     
     var body: some View {
@@ -22,20 +23,18 @@ struct LoginView: View {
             Text("Cenfotec-gram")
                 .font(.title)
                 .foregroundColor(Color.black)
-            Text("Login")
-                .font(.headline)
-                .padding(.vertical, 2.0)
-            
+
             HStack{
                 Image(systemName: "envelope")
                     .font(.title2)
                     .foregroundColor(.black)
                     .frame(width: 35)
-                TextField("EMAIL", text: $userName)
+                TextField("EMAIL", text: $username)
+                    .disableAutocorrection(true)
                     .autocapitalization(/*@START_MENU_TOKEN@*/.none/*@END_MENU_TOKEN@*/)
             }
             .padding()
-            .background(Color.white.opacity(userName == "" ? 0 : 0.12))
+            .background(Color.white.opacity(username == "" ? 0 : 0.12))
             .cornerRadius(15)
             .padding(.horizontal)
             
@@ -61,8 +60,8 @@ struct LoginView: View {
                         .padding(.vertical)
                         .frame(width: UIScreen.main.bounds.width - 150)
                 })
-                .opacity(userName != "" && password != "" ? 1 : 0.5)
-                .disabled(userName != "" && password != "" ? false: true )
+                .opacity(username != "" && password != "" ? 1 : 0.5)
+                .disabled(username != "" && password != "" ? false: true )
                 
                 if getBiometricStatus(){
                     Button(
@@ -75,6 +74,15 @@ struct LoginView: View {
                     )
                 }
             }
+            
+            NavigationLink(destination:  SignUpView()) {
+                HStack(alignment: .center) {
+                    Spacer()
+                    Text("Or click here to Sign Up").font(/*@START_MENU_TOKEN@*/.footnote/*@END_MENU_TOKEN@*/).fontWeight(.black)
+                    Spacer()
+                }
+            }.padding()
+            
         }
     }
     func getBiometricStatus()->Bool{
@@ -88,21 +96,34 @@ struct LoginView: View {
 
     func authenticateUser(){
         let scanner = LAContext()
-        scanner.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: "To Unlock \(userName)"){(status, error) in
+        scanner.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: "To Unlock \(username)"){(status, error) in
             if error != nil{
                 print("Error")
                 print(error!.localizedDescription)
                 return
             }
-            withAnimation(.easeOut){logged = true}
+            withAnimation(.easeOut){self.sessionVM.logged = true}
         }
     }
 
     func authenticateUserPassword(){
-        if self.coreDataVM.auth(userName: userName, pass: password){
-            withAnimation(.easeOut){logged = true}
-        }else{
-            print("User Password Does not match")
+        Amplify.Auth.signIn(username: username, password: password) { result in
+            switch result {
+            
+            case .success:
+                print("\(username) signed in")
+                DispatchQueue.main.async {
+                    withAnimation(.easeOut){self.sessionVM.logged = true}
+                    print("Login In")
+                }
+                
+            case .failure(let error):
+                print(error)
+                DispatchQueue.main.async {
+                    SCLAlertView().showError("Error", subTitle: error.errorDescription) // Error
+
+                }
+            }
         }
     }
 }
